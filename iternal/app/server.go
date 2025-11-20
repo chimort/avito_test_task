@@ -20,10 +20,6 @@ type Server struct {
 func NewServer(log *logger.Logger, db *sql.DB) *Server {
 	e := echo.New()
 
-	e.GET("/ping", func(c echo.Context) error {
-		return c.String(200, "pong")
-	})
-
 	repo := repository.NewUserRepository(db)
 	userService := service.NewUserService(repo, log)
 	h := handlers.NewHandlers(userService, log)

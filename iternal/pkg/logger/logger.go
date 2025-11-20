@@ -9,6 +9,7 @@ type Level slog.Level
 
 const (
 	LevelInfo  Level = Level(slog.LevelInfo)
+	LevelWarn  Level = Level(slog.LevelWarn)
 	LevelError Level = Level(slog.LevelError)
 )
 
@@ -28,6 +29,10 @@ func NewLogger(serviceName string, level Level) *Logger {
 
 func (l *Logger) Info(msg string, args ...any) {
 	l.log.Info(msg, args...)
+}
+
+func (l *Logger) Warn(msg string, args ...any) {
+	l.log.Warn(msg, args...)
 }
 
 func (l *Logger) Error(msg string, args ...any) {
