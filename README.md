@@ -10,7 +10,7 @@ git clone https://github.com/chimort/avito_test_task.git
 
 
 ### 3. Используемые версии
-- **GO**: 1.25+
+- **GO**: 1.25.3+
 - **Docker**: 4.38
 - **PostgressSQL**: 15 
 
