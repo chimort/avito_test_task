@@ -14,4 +14,4 @@ down:
 	$(COMPOSE) down -v
 
 test:
-	go test ./..
+	go test -count=1 ./tests/handlers ./tests/service ./tests/repository

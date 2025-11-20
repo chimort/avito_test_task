@@ -1,6 +1,7 @@
 package app
 
 import (
+	"database/sql"
 	"os"
 
 	"github.com/chimort/avito_test_task/iternal/api"
@@ -16,16 +17,16 @@ type Server struct {
 	log  *logger.Logger
 }
 
-func NewServer(log *logger.Logger) *Server {
+func NewServer(log *logger.Logger, db *sql.DB) *Server {
 	e := echo.New()
 
 	e.GET("/ping", func(c echo.Context) error {
 		return c.String(200, "pong")
 	})
-	
-	repo := repository.NewUserRepository()
-	userService := service.NewUserService(repo)
-	h := handlers.NewHandlers(userService)
+
+	repo := repository.NewUserRepository(db)
+	userService := service.NewUserService(repo, log)
+	h := handlers.NewHandlers(userService, log)
 
 	api.RegisterHandlers(e, h)
 

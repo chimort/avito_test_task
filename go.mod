@@ -21,7 +21,8 @@ require (
 )
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/golang-migrate/migrate/v4 v4.19.0
 	github.com/labstack/echo/v4 v4.13.4
-	github.com/lib/pq v1.10.9 // indirect
+	github.com/lib/pq v1.10.9
 )

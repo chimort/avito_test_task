@@ -6,7 +6,6 @@ run:
 linters:
   enable:
     - govet
-    - errcheck
     - staticcheck
     - unused
     - gocyclo
@@ -14,6 +13,8 @@ linters:
     - unconvert
     - dupl
   disable-all: false
-   
-issues:
-  exclude-use-default: false
+  exclusions:
+    rules:
+      - path: '(.+)_test\.go$'
+        linters:
+          - errcheck

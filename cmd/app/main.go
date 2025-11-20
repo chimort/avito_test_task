@@ -7,8 +7,9 @@ import (
 
 func main() {
 	log := logger.NewLogger("app", logger.LevelInfo)
-	app.RunMigrations(log)
+	db := app.InitDB(log)
+	app.RunMigrations(log, db)
 
-	server := app.NewServer(log)
+	server := app.NewServer(log, db)
 	server.Start(":8080")
 }
