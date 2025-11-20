@@ -3,7 +3,11 @@ package app
 import (
 	"os"
 
+	"github.com/chimort/avito_test_task/iternal/api"
+	"github.com/chimort/avito_test_task/iternal/handlers"
 	"github.com/chimort/avito_test_task/iternal/pkg/logger"
+	"github.com/chimort/avito_test_task/iternal/repository"
+	"github.com/chimort/avito_test_task/iternal/service"
 	"github.com/labstack/echo/v4"
 )
 
@@ -18,6 +22,12 @@ func NewServer(log *logger.Logger) *Server {
 	e.GET("/ping", func(c echo.Context) error {
 		return c.String(200, "pong")
 	})
+	
+	repo := repository.NewUserRepository()
+	userService := service.NewUserService(repo)
+	h := handlers.NewHandlers(userService)
+
+	api.RegisterHandlers(e, h)
 
 	return &Server{
 		echo: e,

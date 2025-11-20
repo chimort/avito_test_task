@@ -2,7 +2,11 @@ module github.com/chimort/avito_test_task
 
 go 1.25.3
 
+require github.com/oapi-codegen/runtime v1.1.2
+
 require (
+	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
