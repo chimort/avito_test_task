@@ -193,3 +193,72 @@ func TestUserRepository_UpdateActive_NotFound(t *testing.T) {
 		t.Errorf("there were unfulfilled expectations: %v", err)
 	}
 }
+
+func TestUserRepository_GetTeam(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	repo := repository.NewUserRepository(db)
+	ctx := context.Background()
+
+	teamName := "backend"
+
+	t.Run("success", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{"id", "name", "is_active"}).
+			AddRow("u1", "Alice", true).
+			AddRow("u2", "Bob", true)
+
+		mock.ExpectQuery("(?i)SELECT .* FROM user_teams").
+			WithArgs(teamName).
+			WillReturnRows(rows)
+
+		team, err := repo.GetTeam(ctx, teamName)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if team.TeamName != teamName {
+			t.Errorf("expected team_name %s, got %s", teamName, team.TeamName)
+		}
+		if len(team.Members) != 2 {
+			t.Errorf("expected 2 members, got %d", len(team.Members))
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("there were unfulfilled expectations: %v", err)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		mock.ExpectQuery("(?i)SELECT .* FROM user_teams").
+			WithArgs("missing").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "is_active"}))
+
+		_, err := repo.GetTeam(ctx, "missing")
+		if !errors.Is(err, repository.ErrTeamNotFound) {
+			t.Fatalf("expected ErrTeamNotFound, got %v", err)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("there were unfulfilled expectations: %v", err)
+		}
+	})
+
+	t.Run("query error", func(t *testing.T) {
+		mock.ExpectQuery("(?i)SELECT .* FROM user_teams").
+			WithArgs("backend").
+			WillReturnError(errors.New("db error"))
+
+		_, err := repo.GetTeam(ctx, "backend")
+		if err == nil || err.Error() != "db error" {
+			t.Fatalf("expected db error, got %v", err)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("there were unfulfilled expectations: %v", err)
+		}
+	})
+}
+

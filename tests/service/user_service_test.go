@@ -15,6 +15,7 @@ import (
 type mockRepo struct {
 	UpdateFunc  func(ctx context.Context, userID string, isActive bool) (*api.User, error)
 	TeamAddFunc func(ctx context.Context, teamName string, members []api.TeamMember) (*api.Team, error)
+	GetTeamFunc func(ctx context.Context, teamName string) (*api.Team, error)
 }
 
 func (m *mockRepo) UpdateActive(ctx context.Context, userID string, isActive bool) (*api.User, error) {
@@ -23,6 +24,19 @@ func (m *mockRepo) UpdateActive(ctx context.Context, userID string, isActive boo
 
 func (m *mockRepo) TeamAdd(ctx context.Context, teamName string, members []api.TeamMember) (*api.Team, error) {
 	return m.TeamAddFunc(ctx, teamName, members)
+}
+
+func (m *mockRepo) GetTeam(ctx context.Context, teamName string) (*api.Team, error) {
+	if teamName == "notfound" {
+		return nil, repository.ErrTeamNotFound
+	}
+	return &api.Team{
+		TeamName: teamName,
+		Members: []api.TeamMember{
+			{UserId: "u1", Username: "Alice", IsActive: true},
+			{UserId: "u2", Username: "Bob", IsActive: true},
+		},
+	}, nil
 }
 
 func TestUserService_SetActive(t *testing.T) {
@@ -82,5 +96,28 @@ func TestUserService_TeamAdd(t *testing.T) {
 	_, err = svc.TeamAdd(context.Background(), "existing", teamMembers)
 	if !errors.Is(err, repository.ErrTeamExists) {
 		t.Fatalf("expected ErrTeamExists, got %v", err)
+	}
+}
+
+
+func TestUserService_GetTeam(t *testing.T) {
+	mock := &mockRepo{}
+	log := logger.NewLogger("app", logger.LevelInfo)
+	svc := service.NewUserService(mock, log)
+
+	team, err := svc.GetTeam(context.Background(), "backend")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if team.TeamName != "backend" {
+		t.Errorf("expected team_name backend, got %s", team.TeamName)
+	}
+	if len(team.Members) != 2 {
+		t.Errorf("expected 2 members, got %d", len(team.Members))
+	}
+
+	_, err = svc.GetTeam(context.Background(), "notfound")
+	if !errors.Is(err, repository.ErrTeamNotFound) {
+		t.Fatalf("expected ErrTeamNotFound, got %v", err)
 	}
 }

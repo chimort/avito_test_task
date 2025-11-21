@@ -10,6 +10,12 @@ import (
 	"github.com/chimort/avito_test_task/iternal/repository"
 )
 
+type UserServiceInterface interface {
+	SetIsActive(ctx context.Context, userID string, isActive bool) (*api.User, error)
+	TeamAdd(ctx context.Context, teamName string, teamMembers []api.TeamMember) (*api.Team, error)
+	GetTeam(ctx context.Context, teamName string) (*api.Team, error)
+}
+
 type UserService struct {
 	repo repository.UserRepo
 	log  *logger.Logger
@@ -38,6 +44,25 @@ func (s *UserService) TeamAdd(ctx context.Context, teamName string, teamMembers 
 		return nil, err
 	}
 	s.log.Info("added team", "team_name", teamName)
+	return team, nil
+}
+
+func (s *UserService) GetTeam(ctx context.Context, teamName string) (*api.Team, error) {
+	s.log.Info("getting team", "team_name", teamName)
+	team, err := s.repo.GetTeam(ctx, teamName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			s.log.Error("no rows in sql", "error", err)
+			return nil, err
+		}
+		if errors.Is(err, repository.ErrTeamNotFound) {
+			s.log.Warn("team not found", "team_name", teamName)
+			return nil, err
+		}
+		s.log.Error("failed to get team", "error", err, "team_name", teamName)
+		return nil, err
+	}
+	s.log.Info("got team", "team", team)
 	return team, nil
 }
 

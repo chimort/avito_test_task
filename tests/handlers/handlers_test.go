@@ -38,6 +38,16 @@ func (m *mockUserService) SetIsActive(ctx context.Context, userID string, isActi
 	}, nil
 }
 
+func (m *mockUserService) GetTeam(ctx context.Context, teamName string) (*api.Team, error) {
+	if teamName == "notfound" {
+		return nil, repository.ErrTeamNotFound
+	}
+	return &api.Team{
+		TeamName: teamName,
+		Members:  []api.TeamMember{},
+	}, nil
+}
+
 func TestPostUsersSetIsActive(t *testing.T) {
 	e := echo.New()
 	us := &mockUserService{}
@@ -89,5 +99,33 @@ func TestPostTeamAdd(t *testing.T) {
 	e.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rec.Code)
+	}
+}
+
+func TestGetTeamGet(t *testing.T) {
+	e := echo.New()
+	us := &mockUserService{}
+	log := logger.NewLogger("app", logger.LevelInfo)
+	h := handlers.NewHandlers(us, log)
+
+	e.GET("/team/get", func(c echo.Context) error {
+		params := api.GetTeamGetParams{
+			TeamName: c.QueryParam("team_name"),
+		}
+		return h.GetTeamGet(c, params)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/team/get?team_name=payments", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/team/get?team_name=notfound", nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", rec.Code)
 	}
 }
