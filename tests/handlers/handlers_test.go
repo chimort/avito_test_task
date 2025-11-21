@@ -88,8 +88,8 @@ func TestPostTeamAdd(t *testing.T) {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rec.Code)
+	if rec.Code != http.StatusCreated {
+		t.Errorf("expected 201, got %d", rec.Code)
 	}
 
 	body = `{"team_name":"existing","members":[{"user_id":"u1","username":"Alice","is_active":true}]}`

@@ -36,7 +36,7 @@ func TestUserRepository_TeamAdd_Success(t *testing.T) {
 
 	for _, m := range members {
 		mock.ExpectExec("(?i)INSERT INTO users").
-			WithArgs(m.UserId, m.UserId, m.IsActive).
+			WithArgs(m.UserId, m.Username, m.IsActive).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 	}
 
@@ -115,7 +115,7 @@ func TestUserRepository_TeamAdd_UserInsertError(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	mock.ExpectExec("(?i)INSERT INTO users").
-		WithArgs(members[0].UserId, members[0].UserId, members[0].IsActive).
+		WithArgs(members[0].UserId, members[0].Username, members[0].IsActive).
 		WillReturnError(errors.New("db error"))
 
 	mock.ExpectRollback()

@@ -18,7 +18,9 @@ create table if not exists pull_requests (
     id text PRIMARY KEY,
     title varchar(100) not null,
     author_id text not null references users(id) on delete cascade,
-    status varchar(50) not null DEFAULT 'OPEN' check(status in ('OPEN', 'MERGED'))
+    status varchar(50) not null DEFAULT 'OPEN' check(status in ('OPEN', 'MERGED')),
+    created_at timestamp with time zone not null DEFAULT CURRENT_TIMESTAMP,
+    merged_at timestamp with time zone DEFAULT NULL
 );
 
 create table if not exists pr_reviewers (
