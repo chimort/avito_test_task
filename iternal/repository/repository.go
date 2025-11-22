@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/chimort/avito_test_task/iternal/api"
@@ -35,9 +34,7 @@ func (r *UserRepository) TeamAdd(ctx context.Context, teamName string, teamMembe
 		return nil, err
 	}
 	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			fmt.Println("roolback error", rbErr)
-		}
+		_ = tx.Rollback()
 	}()
 
 	_, err = tx.ExecContext(ctx, `insert into team (name) values ($1)`, teamName)
@@ -88,11 +85,7 @@ func (r *UserRepository) GetTeam(ctx context.Context, teamName string) (*api.Tea
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			fmt.Println("row close error", err)
-		}
-	}()
+	defer func() { _ = rows.Close() }()
 
 	var members []api.TeamMember
 	for rows.Next() {
@@ -158,9 +151,7 @@ func (r *UserRepository) PullRequestCreate(ctx context.Context, pullRequestId st
 	}
 
 	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			fmt.Println("roolback error", rbErr)
-		}
+		_ = tx.Rollback()
 	}()
 
 	res, err := tx.ExecContext(ctx,
@@ -197,11 +188,7 @@ func (r *UserRepository) PullRequestCreate(ctx context.Context, pullRequestId st
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			fmt.Println("row close error", err)
-		}
-	}()
+	defer func() { _ = rows.Close() }()
 
 	var reviewerIDs []string
 	for rows.Next() {
@@ -244,9 +231,7 @@ func (r *UserRepository) PullRequestMerge(ctx context.Context, pullRequestId str
 		return nil, err
 	}
 	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			fmt.Println("roolback error", rbErr)
-		}
+		_ = tx.Rollback()
 	}()
 
 	var currentStatus string
@@ -274,11 +259,7 @@ func (r *UserRepository) PullRequestMerge(ctx context.Context, pullRequestId str
 		if err != nil {
 			return nil, err
 		}
-		defer func() {
-			if err := rows.Close(); err != nil {
-				fmt.Println("row close error", err)
-			}
-		}()
+		defer func() { _ = rows.Close() }()
 
 		for rows.Next() {
 			var id string
@@ -313,11 +294,7 @@ func (r *UserRepository) PullRequestMerge(ctx context.Context, pullRequestId str
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			fmt.Println("row close error", err)
-		}
-	}()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var id string
@@ -340,9 +317,7 @@ func (r *UserRepository) PullRequestReassign(ctx context.Context, pullRequestId 
 		return nil, "", err
 	}
 	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			fmt.Println("roolback error", rbErr)
-		}
+		_ = tx.Rollback()
 	}()
 
 	var authorId, status, pullRequestName string
@@ -439,11 +414,7 @@ func (r *UserRepository) PullRequestReassign(ctx context.Context, pullRequestId 
 	if err != nil {
 		return nil, "", err
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			fmt.Println("row close error", err)
-		}
-	}()
+	defer func() { _ = rows.Close() }()
 
 	var reviewers []string
 	for rows.Next() {
@@ -480,11 +451,7 @@ func (r *UserRepository) GetPRsByReviewer(ctx context.Context, reviewerId string
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			fmt.Println("row close error", err)
-		}
-	}()
+	defer func() { _ = rows.Close() }()
 
 	var prs []*api.PullRequestShort
 	for rows.Next() {
