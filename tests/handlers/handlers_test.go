@@ -56,12 +56,12 @@ func (m *mockUserService) PullRequestCreate(ctx context.Context, prID, prName, a
 		return nil, repository.ErrPRExists
 	}
 	return &api.PullRequest{
-		PullRequestId:   prID,
-		PullRequestName: prName,
-		AuthorId:        authorID,
-		Status:          "MERGED",
+		PullRequestId:     prID,
+		PullRequestName:   prName,
+		AuthorId:          authorID,
+		Status:            "MERGED",
 		AssignedReviewers: []string{"u3", "u4"},
-		CreatedAt:       &t,
+		CreatedAt:         &t,
 	}, nil
 }
 

@@ -4,20 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/chimort/avito_test_task/iternal/api"
 	"github.com/lib/pq"
 )
-
-var ErrTeamExists = errors.New("team already exists")
-var ErrTeamNotFound = errors.New("team not found")
-var ErrPRExists = errors.New("PR already exists")
-var ErrUserNotFound = errors.New("user not found")
-var ErrPRNotFound = errors.New("PR not found")
-var ErrPRMerged = errors.New("can not ressign on merged pr")
-var ErrReviewerNotAssign = errors.New("no is not assigned")
-var ErrNoCandidates = errors.New("no active replacement candidates")
 
 type UserRepo interface {
 	UpdateActive(ctx context.Context, userID string, isActive bool) (*api.User, error)
@@ -42,7 +34,11 @@ func (r *UserRepository) TeamAdd(ctx context.Context, teamName string, teamMembe
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+			fmt.Println("roolback error", rbErr)
+		}
+	}()
 
 	_, err = tx.ExecContext(ctx, `insert into team (name) values ($1)`, teamName)
 	if err != nil {
@@ -92,7 +88,11 @@ func (r *UserRepository) GetTeam(ctx context.Context, teamName string) (*api.Tea
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Println("row close error", err)
+		}
+	}()
 
 	var members []api.TeamMember
 	for rows.Next() {
@@ -157,7 +157,11 @@ func (r *UserRepository) PullRequestCreate(ctx context.Context, pullRequestId st
 		return nil, err
 	}
 
-	defer tx.Rollback()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+			fmt.Println("roolback error", rbErr)
+		}
+	}()
 
 	res, err := tx.ExecContext(ctx,
 		`insert into pull_requests (id, title, author_id)
@@ -193,7 +197,11 @@ func (r *UserRepository) PullRequestCreate(ctx context.Context, pullRequestId st
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Println("row close error", err)
+		}
+	}()
 
 	var reviewerIDs []string
 	for rows.Next() {
@@ -235,7 +243,11 @@ func (r *UserRepository) PullRequestMerge(ctx context.Context, pullRequestId str
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+			fmt.Println("roolback error", rbErr)
+		}
+	}()
 
 	var currentStatus string
 	err = tx.QueryRowContext(ctx,
@@ -262,7 +274,11 @@ func (r *UserRepository) PullRequestMerge(ctx context.Context, pullRequestId str
 		if err != nil {
 			return nil, err
 		}
-		defer rows.Close()
+		defer func() {
+			if err := rows.Close(); err != nil {
+				fmt.Println("row close error", err)
+			}
+		}()
 
 		for rows.Next() {
 			var id string
@@ -297,7 +313,11 @@ func (r *UserRepository) PullRequestMerge(ctx context.Context, pullRequestId str
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Println("row close error", err)
+		}
+	}()
 
 	for rows.Next() {
 		var id string
@@ -319,7 +339,11 @@ func (r *UserRepository) PullRequestReassign(ctx context.Context, pullRequestId 
 	if err != nil {
 		return nil, "", err
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+			fmt.Println("roolback error", rbErr)
+		}
+	}()
 
 	var authorId, status, pullRequestName string
 	var createdAt time.Time
@@ -415,7 +439,11 @@ func (r *UserRepository) PullRequestReassign(ctx context.Context, pullRequestId 
 	if err != nil {
 		return nil, "", err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Println("row close error", err)
+		}
+	}()
 
 	var reviewers []string
 	for rows.Next() {
@@ -452,7 +480,11 @@ func (r *UserRepository) GetPRsByReviewer(ctx context.Context, reviewerId string
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Println("row close error", err)
+		}
+	}()
 
 	var prs []*api.PullRequestShort
 	for rows.Next() {

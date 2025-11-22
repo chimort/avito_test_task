@@ -413,7 +413,7 @@ func (h *Handlers) GetUsersGetReview(ctx echo.Context, params api.GetUsersGetRev
 			PullRequestId:   pr.PullRequestId,
 			PullRequestName: pr.PullRequestName,
 			AuthorId:        pr.AuthorId,
-			Status:          api.PullRequestShortStatus(pr.Status),
+			Status:          pr.Status,
 		})
 	}
 

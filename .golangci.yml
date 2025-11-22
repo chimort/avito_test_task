@@ -11,10 +11,10 @@ linters:
     - gocyclo
     - ineffassign
     - unconvert
-    - dupl
   disable-all: false
   exclusions:
     rules:
       - path: '(.+)_test\.go$'
         linters:
           - errcheck
+          - dupl
