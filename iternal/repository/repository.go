@@ -15,6 +15,9 @@ var ErrTeamNotFound = errors.New("team not found")
 var ErrPRExists = errors.New("PR already exists")
 var ErrUserNotFound = errors.New("user not found")
 var ErrPRNotFound = errors.New("PR not found")
+var ErrPRMerged = errors.New("can not ressign on merged pr")
+var ErrReviewerNotAssign = errors.New("no is not assigned")
+var ErrNoCandidates = errors.New("no active replacement candidates")
 
 type UserRepo interface {
 	UpdateActive(ctx context.Context, userID string, isActive bool) (*api.User, error)
@@ -22,6 +25,8 @@ type UserRepo interface {
 	GetTeam(ctx context.Context, teamName string) (*api.Team, error)
 	PullRequestCreate(ctx context.Context, pullRequestId string, pullRequestName string, authorId string) (*api.PullRequest, error)
 	PullRequestMerge(ctx context.Context, pullRequestId string) (*api.PullRequest, error)
+	PullRequestReassign(ctx context.Context, pullRequestId string, oldUserId string) (*api.PullRequest, string, error)
+	GetPRsByReviewer(ctx context.Context, reviewerId string) ([]*api.PullRequestShort, error)
 }
 
 type UserRepository struct {
@@ -51,7 +56,7 @@ func (r *UserRepository) TeamAdd(ctx context.Context, teamName string, teamMembe
 		_, err := tx.ExecContext(ctx,
 			`insert into users (id, name, is_active) values ($1, $2, $3)
 		on conflict (id) do update set is_active = EXCLUDED.is_active`,
-		 member.UserId, member.Username, member.IsActive)
+			member.UserId, member.Username, member.IsActive)
 		if err != nil {
 			return nil, err
 		}
@@ -102,8 +107,8 @@ func (r *UserRepository) GetTeam(ctx context.Context, teamName string) (*api.Tea
 	}
 
 	team := &api.Team{
-    	TeamName: teamName,
-    	Members:  members,
+		TeamName: teamName,
+		Members:  members,
 	}
 	return team, nil
 }
@@ -155,9 +160,9 @@ func (r *UserRepository) PullRequestCreate(ctx context.Context, pullRequestId st
 	defer tx.Rollback()
 
 	res, err := tx.ExecContext(ctx,
-	`insert into pull_requests (id, title, author_id)
-	select $1, $2, id from users where id = $3`,
-	pullRequestId, pullRequestName, authorId)
+		`insert into pull_requests (id, title, author_id)
+		select $1, $2, id from users where id = $3`,
+		pullRequestId, pullRequestName, authorId)
 
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
@@ -175,14 +180,16 @@ func (r *UserRepository) PullRequestCreate(ctx context.Context, pullRequestId st
 	}
 
 	rows, err := tx.QueryContext(ctx,
-	`select u.id
-	from users u
-	join user_teams ut on u.id = ut.user_id
-	where ut.team_name = (
-	select team_name from user_teams where user_id = $1 limit 1
-	) and u.id <> $1 and u.is_active = true
-	order by random()
-	limit 2`, authorId)
+		`select u.id
+		from users u
+		join user_teams ut on u.id = ut.user_id
+		where ut.team_name = (
+		select team_name from user_teams where user_id = $1 limit 1
+		) and u.id <> $1 and u.is_active = true
+		order by random()
+		limit 2`,
+		authorId)
+
 	if err != nil {
 		return nil, err
 	}
@@ -212,13 +219,13 @@ func (r *UserRepository) PullRequestCreate(ctx context.Context, pullRequestId st
 	}
 
 	pr := &api.PullRequest{
-		PullRequestId: pullRequestId,
-		PullRequestName: pullRequestName,
-		AuthorId: authorId,
+		PullRequestId:     pullRequestId,
+		PullRequestName:   pullRequestName,
+		AuthorId:          authorId,
 		AssignedReviewers: reviewerIDs,
-		CreatedAt:   func() *time.Time { t := time.Now(); return &t }(),
-		MergedAt:  nil,
-		Status:   "OPEN",
+		CreatedAt:         func() *time.Time { t := time.Now(); return &t }(),
+		MergedAt:          nil,
+		Status:            "OPEN",
 	}
 	return pr, nil
 }
@@ -305,4 +312,157 @@ func (r *UserRepository) PullRequestMerge(ctx context.Context, pullRequestId str
 	}
 
 	return &pr, nil
+}
+
+func (r *UserRepository) PullRequestReassign(ctx context.Context, pullRequestId string, oldUserId string) (*api.PullRequest, string, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	defer tx.Rollback()
+
+	var authorId, status, pullRequestName string
+	var createdAt time.Time
+
+	err = tx.QueryRowContext(ctx,
+		`select author_id, status, title, created_at
+		from pull_requests
+		where id = $1`,
+		pullRequestId,
+	).Scan(&authorId, &status, &pullRequestName, &createdAt)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, "", ErrPRNotFound
+		}
+		return nil, "", err
+	}
+
+	if status == "MERGED" {
+		return nil, "", ErrPRMerged
+	}
+
+	var reviewerExists int
+	err = tx.QueryRowContext(ctx,
+		`select 1 
+		 from pr_reviewers 
+		 where pr_id = $1 and reviewer_id = $2`,
+		pullRequestId, oldUserId,
+	).Scan(&reviewerExists)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, "", ErrReviewerNotAssign
+		}
+		return nil, "", err
+	}
+
+	var newReviewer string
+	err = tx.QueryRowContext(ctx,
+		`select u.id
+		from users u
+		join user_teams ut on ut.user_id = u.id
+		where ut.team_name = (
+				select team_name
+				from user_teams
+				where user_id = $2
+				limit 1
+		)
+		and u.is_active = true
+		and u.id <> $2
+		and u.id <> $3
+		and u.id not in (
+				select reviewer_id
+				from pr_reviewers
+				where pr_id = $1
+		)
+		order by random()
+		limit 1`,
+		pullRequestId, oldUserId, authorId,
+	).Scan(&newReviewer)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, "", ErrNoCandidates
+		}
+		return nil, "", err
+	}
+
+	_, err = tx.ExecContext(ctx,
+		`delete from pr_reviewers 
+		 where pr_id = $1 and reviewer_id = $2`,
+		pullRequestId, oldUserId,
+	)
+	if err != nil {
+		return nil, "", err
+	}
+
+	_, err = tx.ExecContext(ctx,
+		`insert into pr_reviewers(pr_id, reviewer_id) 
+		 values ($1, $2)`,
+		pullRequestId, newReviewer,
+	)
+	if err != nil {
+		return nil, "", err
+	}
+
+	rows, err := tx.QueryContext(ctx,
+		`select reviewer_id 
+		 from pr_reviewers 
+		 where pr_id = $1`,
+		pullRequestId,
+	)
+	if err != nil {
+		return nil, "", err
+	}
+	defer rows.Close()
+
+	var reviewers []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, "", err
+		}
+		reviewers = append(reviewers, id)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, "", err
+	}
+
+	pr := &api.PullRequest{
+		PullRequestId:     pullRequestId,
+		PullRequestName:   pullRequestName,
+		AuthorId:          authorId,
+		AssignedReviewers: reviewers,
+		Status:            api.PullRequestStatus(status),
+		CreatedAt:         &createdAt,
+		MergedAt:          nil,
+	}
+
+	return pr, newReviewer, nil
+}
+
+func (r *UserRepository) GetPRsByReviewer(ctx context.Context, reviewerId string) ([]*api.PullRequestShort, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`select pr.id, pr.title, pr.author_id, pr.status
+		 from pull_requests pr
+		 join pr_reviewers prr on prr.pr_id = pr.id
+		 where prr.reviewer_id = $1`, reviewerId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var prs []*api.PullRequestShort
+	for rows.Next() {
+		var pr api.PullRequestShort
+		var status string
+		if err := rows.Scan(&pr.PullRequestId, &pr.PullRequestName, &pr.AuthorId, &status); err != nil {
+			return nil, err
+		}
+		pr.Status = api.PullRequestShortStatus(status)
+		prs = append(prs, &pr)
+	}
+	return prs, nil
 }

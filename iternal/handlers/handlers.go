@@ -239,7 +239,7 @@ func (h *Handlers) PostPullRequestCreate(ctx echo.Context) error {
 	return ctx.JSON(http.StatusCreated, map[string]interface{}{"pr": pr})
 }
 
-func (h *Handlers) PostPullRequestMerge(ctx echo.Context) error    { 
+func (h *Handlers) PostPullRequestMerge(ctx echo.Context) error {
 	var body api.PostPullRequestMergeJSONBody
 	if err := ctx.Bind(&body); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.ErrorResponse{
@@ -280,8 +280,145 @@ func (h *Handlers) PostPullRequestMerge(ctx echo.Context) error    {
 	return ctx.JSON(http.StatusOK, map[string]interface{}{"pr": pr})
 }
 
+func (h *Handlers) PostPullRequestReassign(ctx echo.Context) error {
+	var body api.PostPullRequestReassignJSONBody
+	if err := ctx.Bind(&body); err != nil {
+		h.log.Error("failed to bind request body", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Error: struct {
+				Code    api.ErrorResponseErrorCode `json:"code"`
+				Message string                     `json:"message"`
+			}{
+				Code:    api.NOTFOUND,
+				Message: "invalid body",
+			},
+		})
+	}
 
-func (h *Handlers) PostPullRequestReassign(ctx echo.Context) error { return nil }
+	if body.PullRequestId == "" || body.OldUserId == "" {
+		return ctx.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Error: struct {
+				Code    api.ErrorResponseErrorCode `json:"code"`
+				Message string                     `json:"message"`
+			}{
+				Code:    api.NOTFOUND,
+				Message: "pull_request_id and old_user_id are required",
+			},
+		})
+	}
+
+	pr, replacedBy, err := h.userService.PullRequestReassign(
+		ctx.Request().Context(),
+		body.PullRequestId,
+		body.OldUserId,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrPRNotFound):
+			return ctx.JSON(http.StatusNotFound, api.ErrorResponse{
+				Error: struct {
+					Code    api.ErrorResponseErrorCode `json:"code"`
+					Message string                     `json:"message"`
+				}{
+					Code:    api.NOTFOUND,
+					Message: "PR not found",
+				},
+			})
+
+		case errors.Is(err, repository.ErrReviewerNotAssign):
+			return ctx.JSON(http.StatusConflict, api.ErrorResponse{
+				Error: struct {
+					Code    api.ErrorResponseErrorCode `json:"code"`
+					Message string                     `json:"message"`
+				}{
+					Code:    api.NOTASSIGNED,
+					Message: "reviewer is not assigned to this PR",
+				},
+			})
+
+		case errors.Is(err, repository.ErrPRMerged):
+			return ctx.JSON(http.StatusConflict, api.ErrorResponse{
+				Error: struct {
+					Code    api.ErrorResponseErrorCode `json:"code"`
+					Message string                     `json:"message"`
+				}{
+					Code:    api.PRMERGED,
+					Message: "cannot reassign on merged PR",
+				},
+			})
+
+		case errors.Is(err, repository.ErrNoCandidates):
+			return ctx.JSON(http.StatusConflict, api.ErrorResponse{
+				Error: struct {
+					Code    api.ErrorResponseErrorCode `json:"code"`
+					Message string                     `json:"message"`
+				}{
+					Code:    api.NOCANDIDATE,
+					Message: "no active replacement candidate in team",
+				},
+			})
+
+		default:
+			h.log.Error("failed to reassign reviewer", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.ErrorResponse{
+				Error: struct {
+					Code    api.ErrorResponseErrorCode `json:"code"`
+					Message string                     `json:"message"`
+				}{
+					Code:    api.NOTFOUND,
+					Message: "failed to reassign reviewer",
+				},
+			})
+		}
+	}
+
+	return ctx.JSON(http.StatusOK, map[string]interface{}{
+		"pr":          pr,
+		"replaced_by": replacedBy,
+	})
+}
+
 func (h *Handlers) GetUsersGetReview(ctx echo.Context, params api.GetUsersGetReviewParams) error {
-	return nil
+	userId := params.UserId
+	if userId == "" {
+		return ctx.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Error: struct {
+				Code    api.ErrorResponseErrorCode `json:"code"`
+				Message string                     `json:"message"`
+			}{
+				Code:    api.NOTFOUND,
+				Message: "user_id is required",
+			},
+		})
+	}
+
+	prs, err := h.userService.GetPRsByReviewer(ctx.Request().Context(), userId)
+	if err != nil {
+		h.log.Error("failed to get PRs for reviewer", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.ErrorResponse{
+			Error: struct {
+				Code    api.ErrorResponseErrorCode `json:"code"`
+				Message string                     `json:"message"`
+			}{
+				Code:    api.NOTFOUND,
+				Message: "failed to fetch PRs",
+			},
+		})
+	}
+
+	var prsShort []api.PullRequestShort
+	for _, pr := range prs {
+		prsShort = append(prsShort, api.PullRequestShort{
+			PullRequestId:   pr.PullRequestId,
+			PullRequestName: pr.PullRequestName,
+			AuthorId:        pr.AuthorId,
+			Status:          api.PullRequestShortStatus(pr.Status),
+		})
+	}
+
+	return ctx.JSON(http.StatusOK, map[string]interface{}{
+		"user_id":       userId,
+		"pull_requests": prsShort,
+	})
 }

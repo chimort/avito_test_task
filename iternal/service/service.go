@@ -15,6 +15,8 @@ type UserServiceInterface interface {
 	GetTeam(ctx context.Context, teamName string) (*api.Team, error)
 	PullRequestCreate(ctx context.Context, pullRequestId string, pullRequestName string, authorId string) (*api.PullRequest, error)
 	PullRequestMerge(ctx context.Context, pullRequestId string) (*api.PullRequest, error)
+	PullRequestReassign(ctx context.Context, pullRequestId string, oldUserId string) (*api.PullRequest, string, error)
+	GetPRsByReviewer(ctx context.Context, reviewerId string) ([]*api.PullRequestShort, error)
 }
 
 type UserService struct {
@@ -90,4 +92,26 @@ func (s *UserService) PullRequestMerge(ctx context.Context, pullRequestId string
 	}
 	s.log.Info("pull request merged", "pr_id", pullRequestId)
 	return pr, nil
+}
+
+func (s *UserService) PullRequestReassign(ctx context.Context, pullRequestId string, oldUserId string) (*api.PullRequest, string, error) {
+	s.log.Info("reassign pull request", "pr_id", pullRequestId, "by_user", oldUserId)
+	pr, newUserId, err := s.repo.PullRequestReassign(ctx, pullRequestId, oldUserId)
+	if err != nil {
+		s.log.Error("failed to reassign pull request", "error", err)
+		return nil, "", err
+	}
+	s.log.Info("pull request reassigned", "pr_id", pullRequestId, "new_user", newUserId)
+	return pr, newUserId, nil
+}
+
+func (s *UserService) GetPRsByReviewer(ctx context.Context, reviewerId string) ([]*api.PullRequestShort, error) {
+	s.log.Info("getting PRs for reviewers", "reviewer_id", reviewerId)
+	prs, err := s.repo.GetPRsByReviewer(ctx, reviewerId)
+	if err != nil {
+		s.log.Error("failed to get PRs for reviewers", "error", err)
+		return nil, err
+	}
+	s.log.Info("got PRs for reviewers", "prs", prs)
+	return prs, nil
 }

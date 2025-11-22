@@ -99,7 +99,6 @@ func TestUserService_TeamAdd(t *testing.T) {
 	}
 }
 
-
 func TestUserService_GetTeam(t *testing.T) {
 	mock := &mockRepo{}
 	log := logger.NewLogger("app", logger.LevelInfo)
